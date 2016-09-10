@@ -1,46 +1,57 @@
 ﻿using UnityEngine;
-using UnityEngine.UI;
-using System;
 using System.Collections;
 using System.Collections.Generic;
-using BulletUnity;
+//using BulletUnity;
 
 public class GraphController : MonoBehaviour {
 
-    public Text nodeCountTxt;
-    public Text linkCountTxt;
+    [SerializeField]
+    private static bool verbose = true;
 
-    public Node nodePrefab;
-    public Link linkPrefab;
-    public GameObject debugRepulseSpherePrefab;
-    public float nodeVectorGenRange = 7F;
+    private static GameController gameControl;
+    private static GameCtrlUI gameCtrlUI;
+    private static GameCtrlHelper gameCtrlHelper;
 
     [SerializeField]
     private bool allStatic = false;
     [SerializeField]
-    private bool globalGravInFixedUpdate = false;
-    private bool globalGravCoRoutineIsRunning = false;
+    private bool paintMode = false;
     [SerializeField]
     private bool repulseActive = true;
     [SerializeField]
     private bool debugRepulse = false;
 
     [SerializeField]
+    private GameObject nodePrefabBullet;
+    [SerializeField]
+    private GameObject nodePrefabPhysX;
+    [SerializeField]
+    private Link linkPrefab;
+    [SerializeField]
+    private float nodeVectorGenRange = 7F;
+
+    [SerializeField]
+    private bool globalGravInFixedUpdate = false;
+    private bool globalGravCoRoutineIsRunning = false;
+
+    [SerializeField]
     private float globalGravityFactor = 0.1f;
     [SerializeField]
     private float repulseForceStrength = 0.1f;
-    // [SerializeField]
-    // public float nodeForceSphereRadius = 50F;                         //this does not work anymore since Bullet CollisionObjects are used, which would need removing and readding to the world. Todo: Could be implemented somewhen.
+    [SerializeField]
+    private float nodePhysXForceSphereRadius = 50F;                         // only works in PhysX; in BulletUnity CollisionObjects are used, which would need removing and readding to the world. Todo: Could implement it somewhen.
     [SerializeField]
     private float linkForceStrength = 6F;
     [SerializeField]
     private float linkIntendedLinkLength = 5F;
 
-    public static int nodeCount;
-    public static int linkCount;
+    private static int nodeCount;
+    private static int linkCount;
+    private List<GameObject> debugObjects = new List<GameObject>();
 
     // variables for global gravity function
-    private List<BRigidBody> nodeRbList = new List<BRigidBody>();
+    // private List<BRigidBody> nodeRbList = new List<BRigidBody>();
+    private List<Component> nodeGenRbList = new List<Component>();
     public bool globalGravityIteratorBreakLoop = true;
     public int globalGravityIteratorBreakCount = 250;
     public float globalGravityInteratorDoneWait = 0.1f;
@@ -51,25 +62,21 @@ public class GraphController : MonoBehaviour {
         {
             return allStatic;
         }
-        private set
+        set
         {
             allStatic = value;
         }
     }
 
-    public void ToggleAllStatic(Toggle tgl)
+    public bool PaintMode
     {
-        if (tgl.isOn)
+        get
         {
-            AllStatic = true;
-            if (GameController.verbose)
-                Debug.Log("AllStatic on");
+            return paintMode;
         }
-        else
+        set
         {
-            AllStatic = false;
-            if (GameController.verbose)
-                Debug.Log("AllStatic off");
+            paintMode = value;
         }
     }
 
@@ -79,25 +86,9 @@ public class GraphController : MonoBehaviour {
         {
             return repulseActive;
         }
-        private set
+        set
         {
             repulseActive = value;
-        }
-    }
-
-    public void ToggleRepulseActive(Toggle tgl)
-    {
-        if (tgl.isOn)
-        {
-            repulseActive = true;
-            if (GameController.verbose)
-                Debug.Log("AllStatic on");
-        }
-        else
-        {
-            repulseActive = false;
-            if (GameController.verbose)
-                Debug.Log("AllStatic off");
         }
     }
 
@@ -107,37 +98,12 @@ public class GraphController : MonoBehaviour {
         {
             return debugRepulse;
         }
-        private set
+        set
         {
-            debugRepulse = value;
-        }
-    }
-
-    public void ToggleDebugRepulse(Toggle tgl)
-    {
-        if (tgl.isOn)
-        {
-            DebugRepulse = true;
-            if (GameController.verbose)
-                Debug.Log("DebugRepulse on");
-
-            foreach (BRigidBody nodeAddDebug in nodeRbList)
+            if (debugRepulse != value)
             {
-                GameObject debugobj = Instantiate(debugRepulseSpherePrefab, nodeAddDebug.transform) as GameObject;
-                debugobj.transform.localPosition = Vector3.zero;
-                float sphereDiam = GameObject.FindGameObjectWithTag("repulse").GetComponent<GhostObjPiggyBack2>().SphRadius * 2;
-                debugobj.transform.localScale = new Vector3(sphereDiam, sphereDiam, sphereDiam);
-            }
-        }
-        else
-        {
-            DebugRepulse = false;
-            if (GameController.verbose)
-                Debug.Log("DebugRepulse off");
-
-            foreach (GameObject destroyTarget in GameObject.FindGameObjectsWithTag("debug"))
-            {
-                Destroy(destroyTarget);
+                debugRepulse = value;
+                DebugAllNodes();
             }
         }
     }
@@ -165,7 +131,19 @@ public class GraphController : MonoBehaviour {
             repulseForceStrength = value;
         }
     }
-    
+
+    public float NodePhysXForceSphereRadius
+    {
+        get
+        {
+            return nodePhysXForceSphereRadius;
+        }
+        set
+        {
+            nodePhysXForceSphereRadius = value;
+        }
+    }
+
     public float LinkForceStrength
     {
         get
@@ -214,21 +192,27 @@ public class GraphController : MonoBehaviour {
         }
     }
 
-    void ApplyGlobalGravityToNode(BRigidBody nodeToApplyGravity)
+    void DebugAllNodes()
     {
-        // See comments in node script for first version of node-local gravity impulses. These were nice tries @impulses. Node-local was too slow, so second version was moved in GraphController as one global function and test performance.
-        // Prepared basic data. We want to apply global gravity pulling node towards center of universe
-        Vector3 dirToCenter = -1f * nodeToApplyGravity.transform.position;
-        //float distToCenter = dirToCenter.magnitude;
-
-        // This iteration works as oneshot impulse that impulses the cube to the center when using m_linear_damping of 0.63. Idea is to use it as oneshot in a custom-timed gravity function which runs less frequent.
-        // Vector3 impulse = dirToCenter * nodeToApplyGravity.mass * globalGravityFactor;
-
-        // This iteration pulls with equal force, regardless of distance. Slower and smoother. Could maybe still use some falloff towards center.
-        Vector3 impulse = dirToCenter.normalized * nodeToApplyGravity.mass * globalGravityFactor;
-
-        // Debug.Log("(GraphController.ApplyGlobalGravity) nodeToGetGravity: " + nodeToApplyGravity + ". Position: " + nodeToApplyGravity.transform.position + ". dirToCenter: " + dirToCenter + ". DistToCenter: " + distToCenter + ". Velocity: " + nodeToApplyGravity.velocity + "; Adding impulse: " + impulse);
-        nodeToApplyGravity.AddImpulse(impulse);
+        if (DebugRepulse)
+        {
+            foreach (GameObject debugObj in debugObjects)
+            {
+                debugObj.SetActive(true);
+                if (debugObj.name == "debugRepulseObj")
+                {
+                    float sphereDiam = gameCtrlHelper.GetRepulseSphereDiam();
+                    debugObj.transform.localScale = new Vector3(sphereDiam, sphereDiam, sphereDiam);
+                }
+            }
+        }
+        else
+        {
+            foreach (GameObject debugObj in debugObjects)
+            {
+                debugObj.SetActive(false);
+            }
+        }
     }
 
     void ApplyGlobalGravityFixedUpdate()
@@ -238,9 +222,9 @@ public class GraphController : MonoBehaviour {
         if (!AllStatic)
         {
             // need to loop over it without foreach(=with enumerator), otherwise "InvalidOperationException: Collection was modified; enumeration operation may not execute". see http://answers.unity3d.com/questions/290595/enumeration-operation-may-not-execute-problem-with.html
-            for (int i = 0; i < nodeRbList.Count; i++)
+            for (int i = 0; i < nodeGenRbList.Count; i++)
             {
-                ApplyGlobalGravityToNode(nodeRbList[i]);
+                gameCtrlHelper.ApplyGlobalGravityToNode(nodeGenRbList[i]);
             }
         }
     }
@@ -254,9 +238,9 @@ public class GraphController : MonoBehaviour {
             if (!AllStatic)
             {
                 // need to loop over it without foreach(=with enumerator), otherwise "InvalidOperationException: Collection was modified; enumeration operation may not execute". see http://answers.unity3d.com/questions/290595/enumeration-operation-may-not-execute-problem-with.html
-                for (int i=0 ; i < nodeRbList.Count; i++)
+                for (int i=0 ; i < nodeGenRbList.Count; i++)
                 {
-                    ApplyGlobalGravityToNode(nodeRbList[i]);
+                    gameCtrlHelper.ApplyGlobalGravityToNode(nodeGenRbList[i]);
 
                     // do a hard yield every globalGravityIteratorBreakCount impulses, too ease it on the cpu. E.g. all cubes stacked in the center of the world being impulsed upon (10 times a second) slows things considerably down when reaching 500 cubes.
                     // So first try here is to limit to 250 impulses every frame. Would allow 12.5k impulses every second when running with 50 FPS.
@@ -277,103 +261,151 @@ public class GraphController : MonoBehaviour {
         {
             Destroy(destroyTarget);
             LinkCount -= 1;
-            linkCountTxt.text = "Linkcount: " + LinkCount;
+            gameCtrlUI.PanelStatusLinkCountTxt.text = "Linkcount: " + LinkCount;
         }
 
         foreach (GameObject destroyTarget in GameObject.FindGameObjectsWithTag("node"))
         {
             Destroy(destroyTarget);
             NodeCount -= 1;
-            nodeCountTxt.text = "Nodecount: " + NodeCount;
+            gameCtrlUI.PanelStatusNodeCountTxt.text = "Nodecount: " + NodeCount;
         }
 
-        nodeRbList.Clear();
+        foreach (GameObject destroyTarget in GameObject.FindGameObjectsWithTag("debug"))
+        {
+            Destroy(destroyTarget);
+        }
+
+        debugObjects.Clear();
+        nodeGenRbList.Clear();
     }
 
-    public GameObject GenerateNode(string mode)
+    private GameObject InstObj(Vector3 createPos)
     {
-        Node nodeCreated = null;
-
-        if (mode == "random")
+        if (gameControl.EngineBulletUnity)
         {
-            Vector3 createPos = new Vector3(UnityEngine.Random.Range(0, nodeVectorGenRange), UnityEngine.Random.Range(0, nodeVectorGenRange), UnityEngine.Random.Range(0, nodeVectorGenRange));
-
-            nodeCreated = Instantiate(nodePrefab, createPos, Quaternion.identity) as Node;
-            nodeCreated.name = "node_" + nodeCount;
-            nodeCount++;
-            nodeCountTxt.text = "Nodecount: " + NodeCount;
-
-        }
-
-        if (nodeCreated != null)
-        {
-            nodeRbList.Add(nodeCreated.GetComponent<BRigidBody>());
-
-            if (GameController.verbose)
-                Debug.Log("GraphController.CreateNode: Node created: " + nodeCreated.gameObject.name);
-
-        } else
-        {
-            if (GameController.verbose)
-                Debug.Log("GraphController.GenerateNode: Something went wrong, did not get a Node Object returned.");
-        }
-
-        return nodeCreated.gameObject;
-    }
-
-    public GameObject GenerateNode(string mode, Vector3 createPos)
-    {
-        Node nodeCreated = null;
-
-        if (mode == "specific_xyz")
-        {
-            nodeCreated = Instantiate(nodePrefab, createPos, Quaternion.identity) as Node;
-            nodeCreated.name = "node_" + nodeCount;
-            nodeCount++;
-            nodeCountTxt.text = "Nodecount: " + NodeCount;
-        }
-
-        if (nodeCreated != null)
-        {
-            nodeRbList.Add(nodeCreated.GetComponent<BRigidBody>());
-
-            if (GameController.verbose)
-                Debug.Log("GraphController.CreateNode: Node created: " + nodeCreated.gameObject.name);
+            return Instantiate(nodePrefabBullet, createPos, Quaternion.identity) as GameObject;
         }
         else
         {
-            if (GameController.verbose)
-                Debug.Log("GraphController.GenerateNode: Something went wrong, did not get a Node Object returned.");
+            return Instantiate(nodePrefabPhysX, createPos, Quaternion.identity) as GameObject;
+        }
+    }
+
+    public GameObject GenerateNode()
+    {
+        // Method for creating a Node on random coordinates, e.g. when spawning multiple new nodes
+
+        GameObject nodeCreated = null;
+
+        Vector3 createPos = new Vector3(UnityEngine.Random.Range(0, nodeVectorGenRange), UnityEngine.Random.Range(0, nodeVectorGenRange), UnityEngine.Random.Range(0, nodeVectorGenRange));
+
+        nodeCreated = InstObj(createPos);
+
+        if (nodeCreated != null)
+        {
+            nodeCreated.name = "node_" + nodeCount;
+            nodeCount++;
+            gameCtrlUI.PanelStatusNodeCountTxt.text = "Nodecount: " + NodeCount;
+
+            //nodeRbList.Add(nodeCreated.GetComponent<BRigidBody>());
+            nodeGenRbList.Add(gameCtrlHelper.getRb(nodeCreated.gameObject));
+
+            GameObject debugObj = nodeCreated.transform.FindChild("debugRepulseObj").gameObject;
+            debugObjects.Add(debugObj);
+            debugObj.SetActive(false);
+
+            if (verbose)
+                Debug.Log(this.GetType().Name + "." + System.Reflection.MethodBase.GetCurrentMethod().Name + ": Node created: " + nodeCreated.gameObject.name);
+
+        } else
+        {
+            if (verbose)
+                Debug.Log(this.GetType().Name + "." + System.Reflection.MethodBase.GetCurrentMethod().Name + ": Something went wrong, did not get a Node Object returned.");
         }
 
         return nodeCreated.gameObject;
     }
 
-    public GameObject GenerateNode(string mode, string name, string id, string type)
+    public GameObject GenerateNode(Vector3 createPos)
     {
-        Node nodeCreated = null;
+        // Method for creating a Node on specific coordinates, e.g. in Paintmode when a node is created at the end of a paintedLink
 
-        if (mode == "specific_initset")
+        GameObject nodeCreated = null;
+
+        //nodeCreated = Instantiate(nodePrefabBullet, createPos, Quaternion.identity) as Node;
+        nodeCreated = InstObj(createPos);
+
+        if (nodeCreated != null)
         {
-            Vector3 createPos = new Vector3(UnityEngine.Random.Range(0, nodeVectorGenRange), UnityEngine.Random.Range(0, nodeVectorGenRange), UnityEngine.Random.Range(0, nodeVectorGenRange));
-
-            nodeCreated = Instantiate(nodePrefab, createPos, Quaternion.identity) as Node;
-            nodeCreated.name = id;
-            nodeCreated.text = name;
-            nodeCreated.type = type;
+            nodeCreated.name = "node_" + nodeCount;
             nodeCount++;
-            nodeCountTxt.text = "Nodecount: " + NodeCount;
+            gameCtrlUI.PanelStatusNodeCountTxt.text = "Nodecount: " + NodeCount;
 
-            nodeRbList.Add(nodeCreated.GetComponent<BRigidBody>());
+            //nodeRbList.Add(nodeCreated.GetComponent<BRigidBody>());
+            nodeGenRbList.Add(gameCtrlHelper.getRb(nodeCreated.gameObject));
 
-            if (GameController.verbose)
-                Debug.Log("GraphController.CreateNode: Node created: " + nodeCreated.gameObject.name);
+            GameObject debugObj = nodeCreated.transform.FindChild("debugRepulseObj").gameObject;
+            debugObjects.Add(debugObj);
+            debugObj.SetActive(false);
 
-            if (nodeCreated == null)
+            if (verbose)
+                Debug.Log(this.GetType().Name + "." + System.Reflection.MethodBase.GetCurrentMethod().Name + ": Node created: " + nodeCreated.gameObject.name);
+        }
+        else
+        {
+            if (verbose)
+                Debug.Log(this.GetType().Name + "." + System.Reflection.MethodBase.GetCurrentMethod().Name + ": Something went wrong, did not get a Node Object returned.");
+        }
+
+        return nodeCreated.gameObject;
+    }
+
+    public GameObject GenerateNode(string name, string id, string type)
+    {
+        // Method for creating a Node on random coordinates, but with defined labels. E.g. when loaded from a file which contains these label.
+
+        GameObject nodeCreated = null;
+
+        Vector3 createPos = new Vector3(UnityEngine.Random.Range(0, nodeVectorGenRange), UnityEngine.Random.Range(0, nodeVectorGenRange), UnityEngine.Random.Range(0, nodeVectorGenRange));
+
+        //nodeCreated = Instantiate(nodePrefabBullet, createPos, Quaternion.identity) as Node;
+        nodeCreated = InstObj(createPos);
+
+        if (nodeCreated != null)
+        {
+            if (gameControl.EngineBulletUnity)
             {
-                if (GameController.verbose)
-                    Debug.Log("GraphController.GenerateNode: Something went wrong, no node created.");
+                Node nodeNode = nodeCreated.GetComponent<Node>();
+                nodeNode.name = id;
+                nodeNode.text = name;
+                nodeNode.type = type;
             }
+            else
+            {
+                NodePhysX nodeNode = nodeCreated.GetComponent<NodePhysX>();
+                nodeNode.name = id;
+                nodeNode.text = name;
+                nodeNode.type = type;
+            }
+
+            nodeCount++;
+            gameCtrlUI.PanelStatusNodeCountTxt.text = "Nodecount: " + NodeCount;
+
+            //nodeGenRbList.Add(nodeCreated.GetComponent<BRigidBody>());
+            nodeGenRbList.Add(gameCtrlHelper.getRb(nodeCreated.gameObject));
+
+            GameObject debugObj = nodeCreated.transform.FindChild("debugRepulseObj").gameObject;
+            debugObjects.Add(debugObj);
+            debugObj.SetActive(false);
+
+            if (verbose)
+                Debug.Log(this.GetType().Name + "." + System.Reflection.MethodBase.GetCurrentMethod().Name + ": Node created: " + nodeCreated.gameObject.name);
+        }
+        else
+        {
+            if (verbose)
+                Debug.Log(this.GetType().Name + "." + System.Reflection.MethodBase.GetCurrentMethod().Name + ": Something went wrong, no node created.");
         }
 
         return nodeCreated.gameObject;
@@ -383,9 +415,9 @@ public class GraphController : MonoBehaviour {
     {
         if (source == null || target == null)
         {
-            if (GameController.verbose)
+            if (verbose)
             {
-                Debug.Log("GraphController.CreateLink: source or target does not exist. Link not created.");
+                Debug.Log(this.GetType().Name + "." + System.Reflection.MethodBase.GetCurrentMethod().Name + ": source or target does not exist. Link not created.");
             }
             return false;
         }
@@ -411,24 +443,24 @@ public class GraphController : MonoBehaviour {
                     linkObject.source = source;
                     linkObject.target = target;
                     linkCount++;
-                    linkCountTxt.text = "Linkcount: " + LinkCount;
+                    gameCtrlUI.PanelStatusLinkCountTxt.text = "Linkcount: " + LinkCount;
 
                     return true;
                 }
                 else
                 {
-                    if (GameController.verbose)
+                    if (verbose)
                     {
-                        Debug.Log("GraphController.CreateLink: Link between source " + source.name + " and target " + target.name + " already exists. Link not created.");
+                        Debug.Log(this.GetType().Name + "." + System.Reflection.MethodBase.GetCurrentMethod().Name + ": Link between source " + source.name + " and target " + target.name + " already exists. Link not created.");
                     }
                     return false;
                 }
             }
             else
             {
-                if (GameController.verbose)
+                if (verbose)
                 {
-                    Debug.Log("GraphController.CreateLink: source " + source.name + " and target " + target.name + " are the same. Link not created.");
+                    Debug.Log(this.GetType().Name + "." + System.Reflection.MethodBase.GetCurrentMethod().Name + ": source " + source.name + " and target " + target.name + " are the same. Link not created.");
                 }
                 return false;
             }
@@ -456,8 +488,8 @@ public class GraphController : MonoBehaviour {
                 success = CreateLink(source, target);
             }
             if (!success)
-                if (GameController.verbose)
-                    Debug.Log("GraphController.GenerateLink: Too many unsuccessful tries, limit reached. Bailing out of GenerateLink run with mode=random. TryCounter: " + tryCounter + " Limit: " + nodeCount * 5);
+                if (verbose)
+                    Debug.Log(this.GetType().Name + "." + System.Reflection.MethodBase.GetCurrentMethod().Name + ": Too many unsuccessful tries, limit reached. Bailing out of GenerateLink run with mode=random. TryCounter: " + tryCounter + " Limit: " + nodeCount * 5);
         }
     }
 
@@ -470,16 +502,45 @@ public class GraphController : MonoBehaviour {
             success = CreateLink(source, target);
 
             if (!success)
-                if (GameController.verbose)
-                    Debug.Log("GraphController.GenerateLink: Problem with creating link. Link not created.");
+                if (verbose)
+                    Debug.Log(this.GetType().Name + "." + System.Reflection.MethodBase.GetCurrentMethod().Name + ": Problem with creating link. Link not created.");
         }
     }
 
-    void Awake()
+    public void GenNodes(int count)
     {
+        for (int i = 0; i < count; i++)
+        {
+            // Create a node on random Coordinates
+            GenerateNode();
+        }
+    }
+
+    public void GenLinks(int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            // Create a link on random Coordinates
+            GenerateLink("random");
+        }
+    }
+
+    void Start()
+    {
+        gameControl = GetComponent<GameController>();
+        gameCtrlUI = GetComponent<GameCtrlUI>();
+        gameCtrlHelper = GetComponent<GameCtrlHelper>();
+
         nodeCount = 0;
         linkCount = 0;
-        nodeRbList.Clear();
+        nodeGenRbList.Clear();
+        debugObjects.Clear();
+
+        foreach (GameObject debugObj in GameObject.FindGameObjectsWithTag("debug"))
+        {
+            debugObjects.Add(debugObj);
+            debugObj.SetActive(false);
+        }
     }
 
     void Update()

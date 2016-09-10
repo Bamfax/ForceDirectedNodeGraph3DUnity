@@ -14,7 +14,12 @@ http://www.digitalopus.ca/site/bullet-physics-in-unity-3d/
 https://www.assetstore.unity3d.com/#!/content/62991
 https://github.com/Phong13/BulletSharpUnity3d
 
-Beware of the code, it's a newbie at work, not anywhere near decent. The current version is in the state of a working draft.
+Usage:
+- w, a, s, d: Move
+- Ctrl, Space: Move up/down
+- Mousewheel: Increase/decrease move speed. Current move speed printed in status text bottom left.
+
+Beware of the code, still learning. The current version is in the state of a working draft.
 
 Licensing:
 - If not mentioned otherwise, the code is this release is GPLv3
@@ -26,11 +31,18 @@ Licensing:
 
 Changelog:
 - v0.01; 14.08.2016; PhysX only. Unreleased.
-- v0.02; 08.09.2016; BulletUnity only. (this release)
-- v0.03; xx.09.2016; Code Rework, BulletUnity and PhysX in the same codebase. In the works.
+- v0.02; 08.09.2016; BulletUnity only.
+- v0.03; 11.09.2016; 
+	- Readded PhysX engine on same codebase. Now BulletUnity or Physics engine can be chosen. Change with bool in GameController
+	- Code Rework, splitted into separate classes per topic
 
-Plans:
-- Code rework, quality improvements
-- Include PhysX on same codebase
+Next release:
+- Remove Bugs
+- Make it OO 
+
+Future plans:
+- Implement custom force graph algo without physics engine.
 - Improve rendering speed.
-- Lots more.
+- Make prettier. 
+- More Input readers.
+- more. much more. after christmas.

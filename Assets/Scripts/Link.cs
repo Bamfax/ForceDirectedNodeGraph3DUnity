@@ -11,10 +11,11 @@ public class Link : MonoBehaviour
     public static float intendedLinkLength;
     public static float forceStrength;
 
+    private static GameController gameControl;
     private static GraphController graphControl;
 
-    private BRigidBody sourceBRigidbody;
-    private BRigidBody targetBRigidbody;
+    private Component sourceRb;
+    private Component targetRb;
     private LineRenderer lineRenderer;
     private float intendedLinkLengthSqr;
     private float distSqrNorm;
@@ -22,6 +23,7 @@ public class Link : MonoBehaviour
     // Use this for initialization
     void Start()
     {
+        gameControl = FindObjectOfType<GameController>();
         graphControl = FindObjectOfType<GraphController>();
 
         lineRenderer = gameObject.AddComponent<LineRenderer>();
@@ -39,33 +41,20 @@ public class Link : MonoBehaviour
         lineRenderer.SetPosition(0, source.transform.position);
         lineRenderer.SetPosition(1, target.transform.position);
 
-        sourceBRigidbody = source.GetComponent<BRigidBody>();
-        targetBRigidbody = target.GetComponent<BRigidBody>();
+        if (gameControl.EngineBulletUnity)
+        {
+            sourceRb = source.GetComponent<BRigidBody>();
+            targetRb = target.GetComponent<BRigidBody>();
+        }
+        else
+        {
+            sourceRb = source.GetComponent<Rigidbody>();
+            targetRb = target.GetComponent<Rigidbody>();
+        }
 
         intendedLinkLengthSqr = intendedLinkLength * intendedLinkLength;
     }
 
-    void FixedUpdate()
-    {
-        if (!graphControl.AllStatic)
-        {
-            Vector3 forceDirection = sourceBRigidbody.transform.position - targetBRigidbody.transform.position;
-            float distSqr = forceDirection.sqrMagnitude;
-
-            if (distSqr > intendedLinkLengthSqr)
-            {
-                //Debug.Log("(Link.FixedUpdate) distSqr: " + distSqr + "/ intendedLinkLengthSqr: " + intendedLinkLengthSqr + " = distSqrNorm: " + distSqrNorm);
-                distSqrNorm = distSqr / intendedLinkLengthSqr;
-
-                Vector3 targetRbImpulse = forceDirection.normalized * forceStrength * distSqrNorm;
-                //Debug.Log("(Link.FixedUpdate) targetBRigidbody: " + targetBRigidbody + ". forceDirection.normalized: " + forceDirection.normalized + ". distSqrNorm: " + distSqrNorm + ". Applying Impulse: " + targetRbImpulse);
-                targetBRigidbody.AddImpulse(targetRbImpulse);
-                Vector3 sourceRbImpulse = forceDirection.normalized * -1 * forceStrength * distSqrNorm;
-                //Debug.Log("(Link.FixedUpdate) targetBRigidbody: " + sourceBRigidbody + ". forceDirection.normalized: " + forceDirection.normalized + "  * -1 * distSqrNorm: " + distSqrNorm + ". Applying Impulse: " + sourceRbImpulse);
-                sourceBRigidbody.AddImpulse(sourceRbImpulse);
-            }
-        }
-    }
 
     // Update is called once per frame
     void Update()
@@ -75,5 +64,38 @@ public class Link : MonoBehaviour
 
         lineRenderer.SetPosition(0, source.transform.position);
         lineRenderer.SetPosition(1, target.transform.position);
+    }
+
+    void FixedUpdate()
+    {
+        if (!graphControl.AllStatic)
+        {
+            Vector3 forceDirection = sourceRb.transform.position - targetRb.transform.position;
+            float distSqr = forceDirection.sqrMagnitude;
+
+            if (distSqr > intendedLinkLengthSqr)
+            {
+                //Debug.Log("(Link.FixedUpdate) distSqr: " + distSqr + "/ intendedLinkLengthSqr: " + intendedLinkLengthSqr + " = distSqrNorm: " + distSqrNorm);
+                distSqrNorm = distSqr / intendedLinkLengthSqr;
+
+                Vector3 targetRbImpulse = forceDirection.normalized * forceStrength * distSqrNorm;
+                Vector3 sourceRbImpulse = forceDirection.normalized * -1 * forceStrength * distSqrNorm;
+
+                if (gameControl.EngineBulletUnity)
+                {
+                    //Debug.Log("(Link.FixedUpdate) targetRb: " + targetRb + ". forceDirection.normalized: " + forceDirection.normalized + ". distSqrNorm: " + distSqrNorm + ". Applying Impulse: " + targetRbImpulse);
+                    ((BRigidBody)targetRb as BRigidBody).AddImpulse(targetRbImpulse);
+                    //Debug.Log("(Link.FixedUpdate) targetRb: " + sourceRb + ". forceDirection.normalized: " + forceDirection.normalized + "  * -1 * distSqrNorm: " + distSqrNorm + ". Applying Impulse: " + sourceRbImpulse);
+                    ((BRigidBody)sourceRb as BRigidBody).AddImpulse(sourceRbImpulse);
+                } else
+                {
+                    //Debug.Log("(Link.FixedUpdate) targetRb: " + targetRb + ". forceDirection.normalized: " + forceDirection.normalized + ". distSqrNorm: " + distSqrNorm + ". Applying Impulse: " + targetRbImpulse);
+                    ((Rigidbody)targetRb as Rigidbody).AddForce(targetRbImpulse);
+                    //Debug.Log("(Link.FixedUpdate) targetRb: " + sourceRb + ". forceDirection.normalized: " + forceDirection.normalized + "  * -1 * distSqrNorm: " + distSqrNorm + ". Applying Impulse: " + sourceRbImpulse);
+                    ((Rigidbody)sourceRb as Rigidbody).AddForce(sourceRbImpulse);
+                }
+
+            }
+        }
     }
 }
