@@ -2,7 +2,7 @@
 A 3D Force Directed Node Graph Implementation in Unity3D
 
 This is a hobby project to attempt to create a Force Directed Node Graph in 3D which renders and updates in realtime. Its primary intent and goal is to visualize computer networks. It uses the Gameengine Unity3d and available physics engines to draw the Graph.
-https://vimeo.com/181982717
+[![Vimeo 3D Force Directed Node Graph with BulletUnity](https://i.vimeocdn.com/video/590726525_590x332.jpg)](http://https://vimeo.com/181982717 "3D Force Directed Node Graph with BulletUnity")
 
 Unity3D was chosen because of the available physics engines offering all needed force functionality and because of its extensibility, moving towards more detailed graphics in later releases. Currently the graph can render around 100 to 300 linked nodes  in realtime, depending on the physic engine and the hardware being run on. As this node limit is not enough for most networks, this needs to be improved in the future.
 
