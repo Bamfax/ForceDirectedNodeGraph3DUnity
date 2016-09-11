@@ -17,7 +17,7 @@ The current version v0.02 uses the BulletUnity Plugin for Unity3D, authored by I
 - https://www.assetstore.unity3d.com/#!/content/62991
 - https://github.com/Phong13/BulletSharpUnity3d
 
-
+<br>
 Usage:
 - w, a, s, d: Move
 - Ctrl, Space: Move up/down
@@ -25,7 +25,7 @@ Usage:
 
 Beware of the code, still learning. The current version is in the state of a working draft.
 
-
+<br>
 Licensing:
 - Please be aware that the different parts of the code are using different licenses
 - If not mentioned otherwise, the code is released is GPLv3
@@ -35,6 +35,7 @@ Licensing:
       https://www.assetstore.unity3d.com/en/#!/content/30891
       https://eri-st.eu/
 
+<br>
 Changelog:
 - v0.01; 14.08.2016; PhysX only. Unreleased.
 - v0.02; 08.09.2016; BulletUnity only.
@@ -42,7 +43,7 @@ Changelog:
 	- Readded PhysX engine on same codebase. Now BulletUnity or Physics engine can be chosen. Change with bool in GameController
 	- Code Rework, splitted into separate classes per topic
 
-
+<br>
 Next version:
 - Remove Bugs
 - Make it OO
@@ -51,9 +52,10 @@ Next version:
 - Make main settings available in runtime GUI
 - Fake hyperbolic view
 - Sphere and / or flat graph projection
+- Inputreader: Make Nodelimit an allstatic choosable on fileload
 - Make it buildable
 
-
+<br>
 Future plans:
 - Implement custom force graph algo without physics engine.
 - Improve rendering speed.
