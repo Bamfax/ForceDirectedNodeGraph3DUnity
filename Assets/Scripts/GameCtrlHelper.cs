@@ -82,44 +82,6 @@ public class GameCtrlHelper : MonoBehaviour {
         return sphereDiam;
     }
 
-    public void ApplyGlobalGravityToNode(Component nodeToApplyGravity)
-    {
-        if (gameControl.EngineBulletUnity)
-        {
-            BRigidBody nodeBRb = (BRigidBody)nodeToApplyGravity as BRigidBody;
-
-            // See comments in node script for first version of node-local gravity impulses. These were nice tries @impulses. Node-local was too slow, so second version was moved in GraphController as one global function and test performance.
-            // Prepared basic data. We want to apply global gravity pulling node towards center of universe
-            Vector3 dirToCenter = -1f * nodeBRb.transform.position;
-            //float distToCenter = dirToCenter.magnitude;
-
-            // This iteration works as oneshot impulse that impulses the cube to the center when using m_linear_damping of 0.63. Idea is to use it as oneshot in a custom-timed gravity function which runs less frequent.
-            // Vector3 impulse = dirToCenter * nodeToApplyGravity.mass * globalGravityFactor;
-
-            // This iteration pulls with equal force, regardless of distance. Slower and smoother. Could maybe still use some falloff towards center.
-            Vector3 impulse = dirToCenter.normalized * nodeBRb.mass * graphControl.GlobalGravityFactor;
-
-            // Debug.Log("(GraphController.ApplyGlobalGravity) nodeToGetGravity: " + nodeToApplyGravity + ". Position: " + nodeToApplyGravity.transform.position + ". dirToCenter: " + dirToCenter + ". DistToCenter: " + distToCenter + ". Velocity: " + nodeToApplyGravity.velocity + "; Adding impulse: " + impulse);
-            nodeBRb.AddImpulse(impulse);
-        }
-        else
-        {
-            //Rigidbody nodeRb = (Rigidbody)nodeToApplyGravity as Rigidbody;
-            //nodeRb.AddForce(impulse);
-        }
-    }
-
-    public Component getRb(GameObject go)
-    {
-        if (gameControl.EngineBulletUnity)
-        {
-            return (Component)go.GetComponent<BRigidBody>() as Component;
-        } else
-        {
-            return (Component)go.GetComponent<Rigidbody>() as Component;
-        }
-    }
-
     // Use this for initialization
     void Start ()
     {

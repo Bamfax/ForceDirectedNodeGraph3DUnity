@@ -20,6 +20,37 @@ public class Link : MonoBehaviour
     private float intendedLinkLengthSqr;
     private float distSqrNorm;
 
+
+    void doAttraction()
+    {
+        Vector3 forceDirection = sourceRb.transform.position - targetRb.transform.position;
+        float distSqr = forceDirection.sqrMagnitude;
+
+        if (distSqr > intendedLinkLengthSqr)
+        {
+            //Debug.Log("(Link.FixedUpdate) distSqr: " + distSqr + "/ intendedLinkLengthSqr: " + intendedLinkLengthSqr + " = distSqrNorm: " + distSqrNorm);
+            distSqrNorm = distSqr / intendedLinkLengthSqr;
+
+            Vector3 targetRbImpulse = forceDirection.normalized * forceStrength * distSqrNorm;
+            Vector3 sourceRbImpulse = forceDirection.normalized * -1 * forceStrength * distSqrNorm;
+
+            if (gameControl.EngineBulletUnity)
+            {
+                //Debug.Log("(Link.FixedUpdate) targetRb: " + targetRb + ". forceDirection.normalized: " + forceDirection.normalized + ". distSqrNorm: " + distSqrNorm + ". Applying Impulse: " + targetRbImpulse);
+                ((BRigidBody)targetRb as BRigidBody).AddImpulse(targetRbImpulse);
+                //Debug.Log("(Link.FixedUpdate) targetRb: " + sourceRb + ". forceDirection.normalized: " + forceDirection.normalized + "  * -1 * distSqrNorm: " + distSqrNorm + ". Applying Impulse: " + sourceRbImpulse);
+                ((BRigidBody)sourceRb as BRigidBody).AddImpulse(sourceRbImpulse);
+            }
+            else
+            {
+                //Debug.Log("(Link.FixedUpdate) targetRb: " + targetRb + ". forceDirection.normalized: " + forceDirection.normalized + ". distSqrNorm: " + distSqrNorm + ". Applying Impulse: " + targetRbImpulse);
+                ((Rigidbody)targetRb as Rigidbody).AddForce(targetRbImpulse);
+                //Debug.Log("(Link.FixedUpdate) targetRb: " + sourceRb + ". forceDirection.normalized: " + forceDirection.normalized + "  * -1 * distSqrNorm: " + distSqrNorm + ". Applying Impulse: " + sourceRbImpulse);
+                ((Rigidbody)sourceRb as Rigidbody).AddForce(sourceRbImpulse);
+            }
+        }
+    }
+
     // Use this for initialization
     void Start()
     {
@@ -69,33 +100,6 @@ public class Link : MonoBehaviour
     void FixedUpdate()
     {
         if (!graphControl.AllStatic)
-        {
-            Vector3 forceDirection = sourceRb.transform.position - targetRb.transform.position;
-            float distSqr = forceDirection.sqrMagnitude;
-
-            if (distSqr > intendedLinkLengthSqr)
-            {
-                //Debug.Log("(Link.FixedUpdate) distSqr: " + distSqr + "/ intendedLinkLengthSqr: " + intendedLinkLengthSqr + " = distSqrNorm: " + distSqrNorm);
-                distSqrNorm = distSqr / intendedLinkLengthSqr;
-
-                Vector3 targetRbImpulse = forceDirection.normalized * forceStrength * distSqrNorm;
-                Vector3 sourceRbImpulse = forceDirection.normalized * -1 * forceStrength * distSqrNorm;
-
-                if (gameControl.EngineBulletUnity)
-                {
-                    //Debug.Log("(Link.FixedUpdate) targetRb: " + targetRb + ". forceDirection.normalized: " + forceDirection.normalized + ". distSqrNorm: " + distSqrNorm + ". Applying Impulse: " + targetRbImpulse);
-                    ((BRigidBody)targetRb as BRigidBody).AddImpulse(targetRbImpulse);
-                    //Debug.Log("(Link.FixedUpdate) targetRb: " + sourceRb + ". forceDirection.normalized: " + forceDirection.normalized + "  * -1 * distSqrNorm: " + distSqrNorm + ". Applying Impulse: " + sourceRbImpulse);
-                    ((BRigidBody)sourceRb as BRigidBody).AddImpulse(sourceRbImpulse);
-                } else
-                {
-                    //Debug.Log("(Link.FixedUpdate) targetRb: " + targetRb + ". forceDirection.normalized: " + forceDirection.normalized + ". distSqrNorm: " + distSqrNorm + ". Applying Impulse: " + targetRbImpulse);
-                    ((Rigidbody)targetRb as Rigidbody).AddForce(targetRbImpulse);
-                    //Debug.Log("(Link.FixedUpdate) targetRb: " + sourceRb + ". forceDirection.normalized: " + forceDirection.normalized + "  * -1 * distSqrNorm: " + distSqrNorm + ". Applying Impulse: " + sourceRbImpulse);
-                    ((Rigidbody)sourceRb as Rigidbody).AddForce(sourceRbImpulse);
-                }
-
-            }
-        }
+            doAttraction();
     }
 }

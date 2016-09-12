@@ -23,14 +23,20 @@ Usage:
 - Ctrl, Space: Move up/down
 - Mousewheel: Increase/decrease move speed. Current move speed printed in status text bottom left.
 
+<br>
+Platforms:
+- Only tested on Win 10
+- Should work on other platforms
+
+<br>
 Beware of the code, still learning. The current version is in the state of a working draft.
 
 <br>
 Licensing:
-- Please be aware that the different parts of the code are using different licenses
-- If not mentioned otherwise, the code is released is GPLv3
-- Included is a slighty modified version of BulletUnity Plugin (Examples removed, BCamera included), refer to mentioned BulletUnity Github repository for its license
-- Layout.xml and CameraControlZeroG.cs from Jason Graves are GPLv3, as mentioned in his tutorial (see link above)
+- Please be aware that the different parts of the code are using different licenses.
+- If not mentioned otherwise, the code is released is GPLv3.
+- Included is a slighty modified version of BulletUnity Plugin (Examples removed, BCamera included), refer to mentioned BulletUnity Github repository for its license.
+- Layout.xml and CameraControlZeroG.cs from Jason Graves are GPLv3, as mentioned in his tutorial (see link above).
 - ProgressBar Unity3D Plugin from Eri is used as progress bar (on loading files). More info and licensing are available here:
       https://www.assetstore.unity3d.com/en/#!/content/30891
       https://eri-st.eu/
@@ -39,20 +45,25 @@ Licensing:
 Changelog:
 - v0.01; 14.08.2016; PhysX only. Unreleased.
 - v0.02; 08.09.2016; BulletUnity only.
-- v0.03; 11.09.2016; 
+- v0.03; 11.09.2016;
 	- Readded PhysX engine on same codebase. Now BulletUnity or Physics engine can be chosen. Change with bool in GameController
 	- Code Rework, splitted into separate classes per topic
+- v0.04; 13.09.2016;
+	- Node did get base class
+	- Moved global Bullet ApplyGravity() back locally in NodeBullet
+	- Graph default values for Bullet. Still needs some tweaking
 
 <br>
-Next version:
+Next versions:
 - Remove Bugs
-- Make it OO
-- Display usage in Editor
+- Make it more OO
+- Display used Engine in Editor
 - Have better default settings for both engines
 - Make main settings available in runtime GUI
-- Fake hyperbolic view
 - Sphere and / or flat graph projection
+- Save/load of transforms
 - Inputreader: Make Nodelimit an allstatic choosable on fileload
+
 - Make it buildable
 
 <br>

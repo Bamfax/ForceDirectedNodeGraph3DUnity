@@ -1,69 +1,55 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public class NodePhysX : MonoBehaviour {
+public class NodePhysX : Node {
 
-    public string id;
-    public string text;
-    public string type;
-
-    public static float globalGravity;
-
-    private static GraphController graphControl;
-
-    private float sqrForceSphereRadius;
-    private float sqrDistNorm;
     private Rigidbody thisRigidbody;
-    
-    void Start()
+
+    private float sphRadius;
+    private float sphRadiusSqr;
+
+    protected override void doGravity()
     {
-        graphControl = FindObjectOfType<GraphController>();
+        // Apply global gravity pulling node towards center of universe
+        Vector3 dirToCenter = - this.transform.position;
+        Vector3 impulse = dirToCenter.normalized * thisRigidbody.mass * graphControl.GlobalGravityPhysX;
+        thisRigidbody.AddForce(impulse);
+    }
+
+    protected override void doRepulse()
+    {
+        // test which node in within forceSphere.
+        Collider[] hitColliders = Physics.OverlapSphere(this.transform.position, sphRadius);
+
+        // only apply force to nodes within forceSphere, with Falloff towards the boundary of the Sphere and no force if outside Sphere.
+        foreach (Collider hitCollider in hitColliders)
+        {
+            Rigidbody hitRb = hitCollider.attachedRigidbody;
+
+            if (hitRb != null && hitRb != thisRigidbody)
+            {
+                Vector3 direction = hitCollider.transform.position - this.transform.position;
+                float distSqr = direction.sqrMagnitude;
+
+                // Normalize the distance from forceSphere Center to node into 0..1
+                float impulseExpoFalloffByDist = Mathf.Clamp( 1 - (distSqr / sphRadiusSqr), 0, 1);
+
+                // apply normalized distance
+                hitRb.AddForce(direction.normalized * graphControl.RepulseForceStrength * impulseExpoFalloffByDist);
+            }
+        }
+    }
+
+    protected override void Start()
+    {
+        base.Start();
         thisRigidbody = this.GetComponent<Rigidbody>();
     }
 
-    void FixedUpdate()
+    void Update()
     {
-        if (!graphControl.AllStatic)
-        {
-            if (graphControl.RepulseActive)
-            {
-                float forceSphereRadius = graphControl.NodePhysXForceSphereRadius;
-
-                // moved from Start() in FixedUpddate(), otherwise it won't see runtime updates of forceSphereRadius
-                sqrForceSphereRadius = forceSphereRadius * forceSphereRadius;
-
-                // test which node in within forceSphere.
-                Collider[] hitColliders = Physics.OverlapSphere(this.transform.position, forceSphereRadius);
-
-                // only apply force to nodes within forceSphere, with Falloff towards the boundary of the Sphere and no force if outside Sphere.
-                foreach (Collider hitCollider in hitColliders)
-                {
-                    if (hitCollider.gameObject != this.gameObject)
-                    {
-                        Rigidbody hitRigidbody = hitCollider.GetComponent<Rigidbody>();
-                        if (hitRigidbody != null)
-                        {
-                            Vector3 forceDirection = hitCollider.transform.position - this.transform.position;
-
-                            float sqrDist = (hitCollider.transform.position - this.transform.position).sqrMagnitude;
-
-                            // only apply force if inside of sphere. Could be omitted, as only objects within the Sphere are considered. Take this out later, when a performance impact can be measured.
-                            if (sqrDist < sqrForceSphereRadius)
-                            {
-                                // Normalize the distance from forceSphere Center to node into 0..1
-                                sqrDistNorm = 1 - (sqrDist / sqrForceSphereRadius);
-
-                                // apply normalized distance linearly
-                                hitRigidbody.AddForce(forceDirection.normalized * graphControl.RepulseForceStrength * sqrDistNorm);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Apply global gravity pulling node towards center of universe
-            Vector3 forceDirectionToCenter = Vector3.zero - this.transform.position;
-            thisRigidbody.AddForce(forceDirectionToCenter.normalized * globalGravity);
-        }
+        // updating variable here, as opposed to doing it in Start(), otherwise we won't see runtime updates of forceSphereRadius
+        sphRadius = graphControl.NodePhysXForceSphereRadius;
+        sphRadiusSqr = sphRadius * sphRadius;
     }
 }

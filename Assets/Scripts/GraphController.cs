@@ -31,11 +31,9 @@ public class GraphController : MonoBehaviour {
     private float nodeVectorGenRange = 7F;
 
     [SerializeField]
-    private bool globalGravInFixedUpdate = false;
-    private bool globalGravCoRoutineIsRunning = false;
-
+    private float globalGravityBullet = 0.1f;
     [SerializeField]
-    private float globalGravityFactor = 0.1f;
+    private float globalGravityPhysX = 10f;
     [SerializeField]
     private float repulseForceStrength = 0.1f;
     [SerializeField]
@@ -48,13 +46,6 @@ public class GraphController : MonoBehaviour {
     private static int nodeCount;
     private static int linkCount;
     private List<GameObject> debugObjects = new List<GameObject>();
-
-    // variables for global gravity function
-    // private List<BRigidBody> nodeRbList = new List<BRigidBody>();
-    private List<Component> nodeGenRbList = new List<Component>();
-    public bool globalGravityIteratorBreakLoop = true;
-    public int globalGravityIteratorBreakCount = 250;
-    public float globalGravityInteratorDoneWait = 0.1f;
 
     public bool AllStatic
     {
@@ -108,15 +99,27 @@ public class GraphController : MonoBehaviour {
         }
     }
 
-    public float GlobalGravityFactor
+    public float GlobalGravityBullet
     {
         get
         {
-            return globalGravityFactor;
+            return globalGravityBullet;
         }
         private set
         {
-            globalGravityFactor = value;
+            globalGravityBullet = value;
+        }
+    }
+
+    public float GlobalGravityPhysX
+    {
+        get
+        {
+            return globalGravityPhysX;
+        }
+        set
+        {
+            globalGravityPhysX = value;
         }
     }
 
@@ -162,7 +165,7 @@ public class GraphController : MonoBehaviour {
         {
             return linkIntendedLinkLength;
         }
-        private set
+        set
         {
             linkIntendedLinkLength = value;
         }
@@ -215,46 +218,6 @@ public class GraphController : MonoBehaviour {
         }
     }
 
-    void ApplyGlobalGravityFixedUpdate()
-    {
-        // apply Global Gravity once in FixedUpdate(). For comparing to ApplyGlobalGravityCoroutine, to see if this is less bouncy.
-        // ToDo: Apply center gravity better. It has two goals: a) keep single nodes from wandering off into space. b) give order to the whole system, condesing it.
-        if (!AllStatic)
-        {
-            // need to loop over it without foreach(=with enumerator), otherwise "InvalidOperationException: Collection was modified; enumeration operation may not execute". see http://answers.unity3d.com/questions/290595/enumeration-operation-may-not-execute-problem-with.html
-            for (int i = 0; i < nodeGenRbList.Count; i++)
-            {
-                gameCtrlHelper.ApplyGlobalGravityToNode(nodeGenRbList[i]);
-            }
-        }
-    }
-
-    IEnumerator ApplyGlobalGravityCoroutine()
-    {
-        // apply Global Gravity forever, at custom interval. Test if that works, as it is easier on performance, but probably it also introduces too much bounce.
-        // ToDo: Apply center gravity better. It has two goals: a) keep single nodes from wandering off into space. b) give order to the whole system, condesing it.
-        for (;;)
-        {
-            if (!AllStatic)
-            {
-                // need to loop over it without foreach(=with enumerator), otherwise "InvalidOperationException: Collection was modified; enumeration operation may not execute". see http://answers.unity3d.com/questions/290595/enumeration-operation-may-not-execute-problem-with.html
-                for (int i=0 ; i < nodeGenRbList.Count; i++)
-                {
-                    gameCtrlHelper.ApplyGlobalGravityToNode(nodeGenRbList[i]);
-
-                    // do a hard yield every globalGravityIteratorBreakCount impulses, too ease it on the cpu. E.g. all cubes stacked in the center of the world being impulsed upon (10 times a second) slows things considerably down when reaching 500 cubes.
-                    // So first try here is to limit to 250 impulses every frame. Would allow 12.5k impulses every second when running with 50 FPS.
-                    // Whereas some testing shows that the slowdown in the "all cubes in center" mostly comes from one collision causing many subsequent collisions, when all cubes are consended at the center. At 700 cubes in the center breakCount needs to be as low as 1 for smooth fps.
-                    // A FPS-dependent breakCount would be an idea. Maybe later, lets get the whole thing running first.
-
-                    if (globalGravityIteratorBreakLoop && i % globalGravityIteratorBreakCount == 0)
-                        yield return null;
-                }
-            }
-            yield return new WaitForSeconds(globalGravityInteratorDoneWait);
-        }
-    }
-
     public void ResetWorld()
     {
         foreach (GameObject destroyTarget in GameObject.FindGameObjectsWithTag("link"))
@@ -277,7 +240,6 @@ public class GraphController : MonoBehaviour {
         }
 
         debugObjects.Clear();
-        nodeGenRbList.Clear();
     }
 
     private GameObject InstObj(Vector3 createPos)
@@ -307,9 +269,6 @@ public class GraphController : MonoBehaviour {
             nodeCreated.name = "node_" + nodeCount;
             nodeCount++;
             gameCtrlUI.PanelStatusNodeCountTxt.text = "Nodecount: " + NodeCount;
-
-            //nodeRbList.Add(nodeCreated.GetComponent<BRigidBody>());
-            nodeGenRbList.Add(gameCtrlHelper.getRb(nodeCreated.gameObject));
 
             GameObject debugObj = nodeCreated.transform.FindChild("debugRepulseObj").gameObject;
             debugObjects.Add(debugObj);
@@ -342,9 +301,6 @@ public class GraphController : MonoBehaviour {
             nodeCount++;
             gameCtrlUI.PanelStatusNodeCountTxt.text = "Nodecount: " + NodeCount;
 
-            //nodeRbList.Add(nodeCreated.GetComponent<BRigidBody>());
-            nodeGenRbList.Add(gameCtrlHelper.getRb(nodeCreated.gameObject));
-
             GameObject debugObj = nodeCreated.transform.FindChild("debugRepulseObj").gameObject;
             debugObjects.Add(debugObj);
             debugObj.SetActive(false);
@@ -374,26 +330,13 @@ public class GraphController : MonoBehaviour {
 
         if (nodeCreated != null)
         {
-            if (gameControl.EngineBulletUnity)
-            {
-                Node nodeNode = nodeCreated.GetComponent<Node>();
-                nodeNode.name = id;
-                nodeNode.text = name;
-                nodeNode.type = type;
-            }
-            else
-            {
-                NodePhysX nodeNode = nodeCreated.GetComponent<NodePhysX>();
-                nodeNode.name = id;
-                nodeNode.text = name;
-                nodeNode.type = type;
-            }
+            Node nodeNode = nodeCreated.GetComponent<Node>();
+            nodeNode.name = id;
+            nodeNode.Text = name;
+            nodeNode.Type = type;
 
             nodeCount++;
             gameCtrlUI.PanelStatusNodeCountTxt.text = "Nodecount: " + NodeCount;
-
-            //nodeGenRbList.Add(nodeCreated.GetComponent<BRigidBody>());
-            nodeGenRbList.Add(gameCtrlHelper.getRb(nodeCreated.gameObject));
 
             GameObject debugObj = nodeCreated.transform.FindChild("debugRepulseObj").gameObject;
             debugObjects.Add(debugObj);
@@ -533,7 +476,6 @@ public class GraphController : MonoBehaviour {
 
         nodeCount = 0;
         linkCount = 0;
-        nodeGenRbList.Clear();
         debugObjects.Clear();
 
         foreach (GameObject debugObj in GameObject.FindGameObjectsWithTag("debug"))
@@ -541,37 +483,28 @@ public class GraphController : MonoBehaviour {
             debugObjects.Add(debugObj);
             debugObj.SetActive(false);
         }
+
+        // prepare stuff
+        if (gameControl.EngineBulletUnity)
+        {
+            RepulseForceStrength = .1f;
+            GlobalGravityBullet = 1f;
+            LinkForceStrength = .1f;
+            LinkIntendedLinkLength = 3f;
+        } else
+        {
+            RepulseForceStrength = 5f;
+            GlobalGravityPhysX = 10f;
+            NodePhysXForceSphereRadius = 35f;
+            LinkForceStrength = 5f;
+            LinkIntendedLinkLength = 3f;
+        }
     }
 
     void Update()
     {
-        //Node.forceSphereRadius = nodeForceSphereRadius;
-        //Node.forceStrength = nodeForceStrength;
-        //Node.globalGravity = globalGravity;
         Link.intendedLinkLength = linkIntendedLinkLength;
         Link.forceStrength = linkForceStrength;
     }
 
-    void FixedUpdate()
-    {
-        // To compare ApplyGlobalGravityCoroutine() with ApplyGlobalGravityFixedUpdate(), test bounciness/performance of partial updates against full updates.
-        if (globalGravInFixedUpdate)
-        {
-            if (globalGravCoRoutineIsRunning)
-            {
-                StopCoroutine(ApplyGlobalGravityCoroutine());
-                globalGravCoRoutineIsRunning = false;
-            }
-
-            ApplyGlobalGravityFixedUpdate();
-        }
-        else
-        {
-            if (!globalGravCoRoutineIsRunning)
-            {
-                globalGravCoRoutineIsRunning = true;
-                StartCoroutine(ApplyGlobalGravityCoroutine());
-            }
-        }
-    }
 }

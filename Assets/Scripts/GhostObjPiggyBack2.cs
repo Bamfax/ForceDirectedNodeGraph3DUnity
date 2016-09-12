@@ -62,52 +62,46 @@ public class GhostObjPiggyBack2 : BGhostObject
         sphRadiusSqr = sphRadius * sphRadius;
     }
 
-    protected override void FixedUpdate()
+    internal void doGravity()
     {
         m_collisionObject.WorldTransform = goParentCo.WorldTransform;
+        //m_collisionObject.WorldTransform = ((CollisionObject)thisRb as CollisionObject);
         //transform.position = goParent.transform.position;
 
-        if (graphControl.RepulseActive && !graphControl.AllStatic)
+        for (int i = 0; i < goGhost.NumOverlappingObjects; i++)
         {
-            for (int i = 0; i < goGhost.NumOverlappingObjects; i++)
+            CollisionObject otherGoCo = goGhost.GetOverlappingObject(i);
+
+            // Todo: Check if BRigidBody can be disabled if everything works. Should be filtered by CollisionGroup+Mask
+            if (otherGoCo.UserObject is BRigidBody)
             {
-                CollisionObject otherGoCo = goGhost.GetOverlappingObject(i);
+                BRigidBody hitRb = (BRigidBody)otherGoCo.UserObject as BRigidBody;
 
-                // Todo: Check if BRigidBody can be disabled if everything works. Should be filtered by CollisionGroup+Mask
-                if (otherGoCo.UserObject is BRigidBody)
+                if (hitRb != goParentRb)
                 {
-                    BRigidBody otherGoRb = (BRigidBody)otherGoCo.UserObject as BRigidBody;
+                    //Debug.Log("BOnTriggerStay: this: " + this + ". go: " + go + ". goParentRb: " + goParentRb + ". / other: " + other + ". otherGoRb: " + otherGoRb);
 
-                    if (otherGoRb != goParentRb)
-                    {
-                        //Debug.Log("BOnTriggerStay: this: " + this + ". go: " + go + ". goParentRb: " + goParentRb + ". / other: " + other + ". otherGoRb: " + otherGoRb);
+                    //Vector3 direction = otherGoCo.WorldTransform.Origin.ToUnity() - goGhost.WorldTransform.Origin.ToUnity();
+                    //Vector3 direction = otherGoRb.gameObject.transform.position - this.transform.position;
+                    //Vector3 direction = otherGoRb.transform.position - goParentRb.transform.position;
+                    Vector3 direction = (otherGoCo.WorldTransform.Origin - goGhost.WorldTransform.Origin).ToUnity();
+                    float distSqr = direction.sqrMagnitude;
 
-                        //Vector3 direction = otherGoCo.WorldTransform.Origin.ToUnity() - goGhost.WorldTransform.Origin.ToUnity();
-                        //Vector3 direction = otherGoRb.gameObject.transform.position - this.transform.position;
-                        Vector3 direction = (otherGoCo.WorldTransform.Origin - goGhost.WorldTransform.Origin).ToUnity();
-                        //Vector3 direction = otherGoRb.transform.position - goParentRb.transform.position;
+                    // only repulse if within Repulse Sphere Radius
+                    // if distSqr > sphRadiusSqr, the following impulseExpoFalloffByDist calc becomes negative. So only use it if distSqr was checked before or add a min/max limit. Otherwise nodes will be applied a negative impulse and go visit Voyager.
+                    float impulseExpoFalloffByDist = Mathf.Clamp(1 - (distSqr / sphRadiusSqr), 0, 1);
 
-                        float distSqr = direction.sqrMagnitude;
-
-                        // only repulse if within Repulse Sphere Radius
-                        if (distSqr < sphRadiusSqr)
-                        {
-                            // if distSqr > sphRadiusSqr, the following impulseExpoFalloffByDist calc becomes negative. So only use it if distSqr was checked before or add a min/max limit. Otherwise nodes will be applied a negative impulse and go visit Voyager.
-                            float impulseExpoFalloffByDist = 1 - (distSqr / sphRadiusSqr);
-                            if (impulseExpoFalloffByDist < 0)
-                                impulseExpoFalloffByDist = 0;
-
-                            Vector3 impulse = direction.normalized * graphControl.RepulseForceStrength * impulseExpoFalloffByDist;
-                            //Debug.Log("goGhostParent: " + goParent + ". goGhostPos: " + goGhost.WorldTransform.Origin.ToUnity() + ". otherGoRb: " + otherGoRb + ". otherGoRbPos: " + otherGoCo.WorldTransform.Origin.ToUnity() +
-                            //          ". direction: " + direction + ". distanceSqr: " + distSqr + ". sphRadiusSqr: " + sphRadiusSqr + ". RepulseForceStrength: " + graphControl.RepulseForceStrength + ". linearImpulseFalloffByDist: " + impulseExpoFalloffByDist.ToString("F4") + ". Applying Impulse: " + impulse.ToString("F4"));
-                            otherGoRb.AddImpulse(impulse);
-                        }
-                    }
+                    Vector3 impulse = direction.normalized * graphControl.RepulseForceStrength * impulseExpoFalloffByDist;
+                    //Debug.Log("goGhostParent: " + goParent + ". goGhostPos: " + goGhost.WorldTransform.Origin.ToUnity() + ". otherGoRb: " + otherGoRb + ". otherGoRbPos: " + otherGoCo.WorldTransform.Origin.ToUnity() +
+                    //          ". direction: " + direction + ". distanceSqr: " + distSqr + ". sphRadiusSqr: " + sphRadiusSqr + ". RepulseForceStrength: " + graphControl.RepulseForceStrength + ". linearImpulseFalloffByDist: " + impulseExpoFalloffByDist.ToString("F4") + ". Applying Impulse: " + impulse.ToString("F4"));
+                    hitRb.AddImpulse(impulse);
+                    //hitRb.AddImpulse(impulse * .5f);
+                    //thisRb.AddImpulse(-impulse * .5f);
                 }
-                else
-                {
-                    Debug.LogError("other.UserObject: " + otherGoCo + " is not a BRigidbody. Check CollisionGroups/Masks!");
-                }
+            }
+            else
+            {
+                Debug.LogError("other.UserObject: " + otherGoCo + " is not a BRigidbody. Check CollisionGroups/Masks!");
             }
         }
     }
